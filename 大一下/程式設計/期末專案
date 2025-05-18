@@ -1,1 +1,104 @@
+#include <SFML/Graphics.hpp>
+#include <iostream>
+#include <cmath>
+#include <optional>
+
+// 物理常數
+constexpr float G      = 9.80665f;            // m/s² :contentReference[oaicite:9]{index=9}
+constexpr float SCALE  = 100.0f;              // 公尺轉像素
+constexpr float START_X = 1025.0f;
+constexpr float START_Y = 800.0f - 2.0f * SCALE; // 出手機構高度 2.0 m
+
+// 攻擊參數結構
+struct AttackParams {
+    float v0;     // 初速 (m/s)
+    float angle;  // 角度 (rad)
+    sf::Vector2f target; // 落點 (pixel)
+};
+
+// 根據輸入取得參數
+AttackParams getParams(char c) {
+    switch (toupper(c)) {
+        case '6': return {4.85f, 115.0f * 3.14159f/180, {800, 600}};
+        case '2': return {3.5f, 100.0f * 3.14159f/180, {400, 600}};
+        case '3': return {4.0f, 50.0f * 3.14159f/180, {600, 600}};
+        case 'A': return {1.2f, 100.0f * 3.14159f/180, {250, 600}};
+        case 'B': return {4.0f, 165.0f * 3.14159f/180, {450, 600}};
+        case 'C': return {2.5f, 30.0f * 3.14159f/180, {650, 600}};
+        default:  return {4.5f, 115.0f * 3.14159f/180, {800, 600}};
+    }
+}
+
+// 拋物線位置計算
+sf::Vector2f calcPos(float t, const AttackParams& p) {
+    float vx = p.v0 * cos(p.angle);
+    float vy = p.v0 * sin(p.angle);
+    float x = START_X + vx * t * SCALE;
+    float y = START_Y - (vy * t - 0.5f * G * t*t) * SCALE;
+    return {x, y};
+}
+
+int main() {
+    char in;
+    std::cout << "輸入位置 (6,2,3,A,B,C): ";
+    std::cin >> in;
+    AttackParams P = getParams(in);
+
+    sf::RenderWindow win(
+        sf::VideoMode(sf::Vector2u(1900,800), 32),
+        "多站位舉球模擬"
+    );
+    win.setFramerateLimit(60);
+
+     // 載入舉球員與排球網貼圖
+    sf::Texture texPlayer, texNet;
+    if (!texPlayer.loadFromFile("player2.png") ||
+        !texNet.loadFromFile("net2.png")) {
+        std::cerr << "無法載入圖片檔案，請確認 player.png 與 net.png 是否存在。\n";
+        return -1;
+    }
+    sf::Sprite sprPlayer(texPlayer);
+    sf::Sprite sprNet(texNet);
+    // 設定位置：舉球員靠左下、排球網居中
+    sprPlayer.setPosition({1050.f, 800.f-2.30f - texPlayer.getSize().y});
+    sprNet.setPosition({850.f, 800.f - texNet.getSize().y});
+
+
+    sf::CircleShape ball(10);
+    ball.setFillColor(sf::Color::Red);
+    ball.setPosition(sf::Vector2f(START_X, START_Y));
+
+    float t = 0, tMax = (P.v0 * sin(P.angle) + sqrt(pow(P.v0*sin(P.angle),2) + 2*G*(START_Y/SCALE))) / G;
+    sf::Clock clk;
+
+    while (win.isOpen()) {
+        // 事件
+        while (const auto e = win.pollEvent()) {
+            if (e->is<sf::Event::Closed>()) win.close();
+        }
+
+        float dt = clk.restart().asSeconds();
+        t += dt;
+
+        // 若超過落地時間，重置 t 與球的初始參數，讓下一球自動開始
+        if (t >= tMax) {
+            t = 0.f;
+            // 你也可以重新讀取使用者輸入或隨機新參數
+            // P = getParams(in);
+        }
+
+        // 更新球的位置
+        sf::Vector2f pos = calcPos(t, P);
+        ball.setPosition(pos);
+
+        // 繪製
+        win.clear(sf::Color::White);
+        win.draw(sprNet);
+        win.draw(sprPlayer);
+        win.draw(ball);
+        win.display();
+    }
+
+    return 0;
+}
 
